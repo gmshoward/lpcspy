@@ -326,22 +326,25 @@ an effects Track that accompanies it. A group can have a shared dynamic arc.
 
 """
 A Track is a series of musical Events. It has a start time; duration is
-determined by the Events included. Optional dynamic arc. The track defines
-the csound instrument number, a table for translating Note pitches to the
-intended csound value, and a map of frequency and dynamic arcs to csound
-instrument parameters.
+determined by the Events included. Optional dynamic arc. The track also
+stores a reference to the Instrument used to emit CSound events.
 """
 class Track(object):
     def __init__(self, instr, events=[], start=0, dynamics=Dynamics()):
         self.instr = instr
         self.events = events
         self.start = start
-        self.dynamics = Dynamics
+        self.dynamics = dynamics
         self.duration = 0.
         for event in self.events:
             self.duration += event.duration
     
-    def emit(self, instr, start, dynamics):
+    def emit(self, start, dynamics=Dynamics()):
+        if (not self.dynamics.absolute and dynamics.absolute):
+            calc_dynamics = self.dynamics.add(dynamics)
+        else:
+            calc_dynamics = self.dynamics
+
         track_start = self.start + start
         event_start = track_start
         for event in self.events:
@@ -559,5 +562,6 @@ if __name__ == "__main__":
         g1,
         Note(None, 3.5, Dynamics([(0.5, 1), (0.25, 0)], True), Articulation.full, 7.00)
     ])
-    c1.emit(instr, 4.0)
+    t1 = Track(instr, [c1, g1])
+    t1.emit(4.0)
     
