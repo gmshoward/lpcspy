@@ -312,17 +312,76 @@ A Song consists of one or more Sections executed sequentially. It has no notion
 of tempo, leaving that to each Section. It provides the per-file boilerplate
 for the score.
 """
+class Song(object):
+    def __init__(self, name="song name", composer="composer", sections=[]):
+        self.name = name
+        self.composer = composer
+        self.sections = sections
+    
+    def emit(self):
+        print (";;======================================================================")
+        print (";; {0}".format(self.name))
+        print (";; by {0}".format(self.composer))
+        print (";;======================================================================")
+        for section in self.sections:
+            section.emit()
+        
 
 """
 A Section is a thematically-related set of Tracks or track Groups. It has an
-optional tempo arc and an optional dynamic arc, as well as a start time and
-a duration.
+optional tempo arc and an optional dynamic arc. For now the tempi are given
+as a list of pairs of (timepoint, tempo) that can be fed more or less directly
+into a csound "t" score statement.
 """
+class Section(object):
+    def __init__(self, name="song section", parts=[], tempo=[(0, 60)], start=0, dynamics=Dynamics()):
+        self.name = name
+        self.parts = parts
+        self.tempo = tempo
+        self.start = start
+        self.dynamics = dynamics
+        self.duration = 0.
+        for part in self.parts:
+            if part.duration > self.duration:
+                self.duration = part.duration
+
+    def emit(self):
+        print ("\n;;======================================================================")
+        print (";; {0}".format(self.name))
+        tempo_statement = "\nt"
+        for t in self.tempo:
+            tempo_statement = tempo_statement + " {0} {1}".format(t[0], t[1])
+        print (tempo_statement)
+            
+        for part in self.parts:
+            part.emit(self.start, self.dynamics)
+        print ("\ns")
 
 """
 A Group is a set of related Tracks. An example might be a melody Track and
 an effects Track that accompanies it. A group can have a shared dynamic arc.
 """
+class Group(object):
+    def __init__(self, name="track group", tracks=[], start=0, dynamics=Dynamics()):
+        self.name = name
+        self.tracks = tracks
+        self.start = start
+        self.dynamics = dynamics
+        self.duration = 0.
+        for track in self.tracks:
+            if track.duration > self.duration:
+                self.duration = track.duration
+        
+    def emit(self, start, dynamics=Dynamics()):
+        print ("\n;;----------------------------------------------------------------------")
+        print (";; {0}".format(self.name))
+        if (not self.dynamics.absolute and dynamics.absolute):
+            calc_dynamics = self.dynamics.add(dynamics)
+        else:
+            calc_dynamics = self.dynamics
+        group_start = self.start + start
+        for track in self.tracks:
+            track.emit(group_start, calc_dynamics)
 
 """
 A Track is a series of musical Events. It has a start time; duration is
@@ -330,7 +389,7 @@ determined by the Events included. Optional dynamic arc. The track also
 stores a reference to the Instrument used to emit CSound events.
 """
 class Track(object):
-    def __init__(self, instr, events=[], start=0, dynamics=Dynamics()):
+    def __init__(self, instr, name=None, events=[], start=0, dynamics=Dynamics()):
         self.instr = instr
         self.events = events
         self.start = start
@@ -338,8 +397,13 @@ class Track(object):
         self.duration = 0.
         for event in self.events:
             self.duration += event.duration
+        if name == None:
+            self.name = "Instrument #{0}".format(self.instr.i_number)
+        else:
+            self.name = name
     
     def emit(self, start, dynamics=Dynamics()):
+        print("\n;; {0}\n;;".format(self.name))
         if (not self.dynamics.absolute and dynamics.absolute):
             calc_dynamics = self.dynamics.add(dynamics)
         else:
@@ -519,13 +583,16 @@ class Instrument(object):
         # Just a single pitch parameter. A more complex instrument might
         # implement a previous-pitch parameter as well, derived from the
         # contents of the portamento cookie.
-        return [ pitch ]
+        if (pitch != None):
+            return [ pitch ]
+        else:
+            return []
     
     def update_portamento(self, params, articulation, portamento):
         # This basic instrument returns previous pitch as the portamento cookie,
         # but it's not actually used.
         if (articulation == Articulation.legato):
-            return params[4];
+            return params[4]
         return None
 
         
@@ -562,6 +629,17 @@ if __name__ == "__main__":
         g1,
         Note(None, 3.5, Dynamics([(0.5, 1), (0.25, 0)], True), Articulation.full, 7.00)
     ])
-    t1 = Track(instr, [c1, g1])
-    t1.emit(4.0)
+    t1 = Track(instr, "Sample Track 1", [c1, g1])
+    
+    fx = Instrument(102)
+    t1_fx = Track(fx, "Effects for Sample Track 1", [
+        Note(0, 15, Dynamics([(0.4, 0.2), (0.25, 0.8), (0.7, 0.)]))
+    ])
+    
+    group1 = Group("Sample Instrument + Effects", [t1, t1_fx])
+    
+    section1 = Section("A Section", [group1], [(0, 100), (10, 80)], 4.0)
+    
+    song1 = Song("Test Song", "Com Poser", [section1])
+    song1.emit()
     
