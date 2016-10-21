@@ -3,6 +3,7 @@ from __future__ import print_function
 import matplotlib.pyplot as plt
 import math
 
+
 # Library of musical representations for use with CSound.
 
 # Note      (start time, duration, amplitude, pitch; legato/stoccato/duration? defer to Gesture?)
@@ -14,15 +15,6 @@ import math
 # Song
 
 
-"""
-A Dynamics object describes amplitude over the life of a Gesture, Chord
-or Note. It can be absolute, but often expresses an amplitude offset
-from its parent Gesture or Track. Envelopes are expressed as a series
-of pairs: level, length, level, length, etc. The level element is a fraction
-of fdbs (therefore in the range [0, 1)). The length element is a fraction
-of the associated event's duration. Ordinarily all length elements should
-add up to 1, but they will all be normalized to this range in any case.
-"""
 
 
 # "Dynamic Point"
@@ -33,6 +25,16 @@ class DP(object):
 
 
 class Dynamics(object):
+    """
+    A Dynamics object describes amplitude over the life of a Gesture, Chord
+    or Note. It can be absolute, but often expresses an amplitude offset
+    from its parent Gesture or Track. Envelopes are expressed as a series
+    of pairs: level, length, level, length, etc. The level element is a fraction
+    of fdbs (therefore in the range [0, 1)). The length element is a fraction
+    of the associated event's duration. Ordinarily all length elements should
+    add up to 1, but they will all be normalized to this range in any case.
+    """
+
     silent = 0.0
     ppp = 0.1
     pp = 0.2
@@ -54,6 +56,10 @@ class Dynamics(object):
     @classmethod
     def constant(cls, level, absolute=False):
         return cls([(level, 1.0), (level, 0.0)], absolute)
+
+    @classmethod
+    def accent(cls, level=0.1):
+        return cls([(level, 1.0), (level, 0.0)], False)
 
     def normalize(self):
         total_length = 0.0
@@ -301,24 +307,21 @@ class Dynamics(object):
         print("{0} {1}".format(abs_string, pair_env))
 
 
-"""
-An Articulation is a hint to a note (or group of notes) about how to
-articulate the event-- i.e., normal, stoccato, or legato.
-"""
-
-
 class Articulation:
+    """
+    An Articulation is a hint to a note (or group of notes) about how to
+    articulate the event-- i.e., normal, stoccato, or legato.
+    """
     full, staccato, legato = range(3)
 
 
-"""
-A Song consists of one or more Sections executed sequentially. It has no notion
-of tempo, leaving that to each Section. It provides the per-file boilerplate
-for the score.
-"""
-
-
 class Song(object):
+    """
+    A Song consists of one or more Sections executed sequentially. It has no notion
+    of tempo, leaving that to each Section. It provides the per-file boilerplate
+    for the score.
+    """
+
     def __init__(self, name="song name", composer="composer", sections=[]):
         self.name = name
         self.composer = composer
@@ -333,15 +336,14 @@ class Song(object):
             section.emit()
 
 
-"""
-A Section is a thematically-related set of Tracks or track Groups. It has an
-optional tempo arc and an optional dynamic arc. For now the tempi are given
-as a list of pairs of (timepoint, tempo) that can be fed more or less directly
-into a csound "t" score statement.
-"""
-
-
 class Section(object):
+    """
+    A Section is a thematically-related set of Tracks or track Groups. It has an
+    optional tempo arc and an optional dynamic arc. For now the tempi are given
+    as a list of pairs of (timepoint, tempo) that can be fed more or less directly
+    into a csound "t" score statement.
+    """
+
     def __init__(self, name="song section", parts=[], tempo=[(0., 60.)], start=0., dynamics=Dynamics()):
         self.name = name
         self.parts = parts
@@ -366,13 +368,12 @@ class Section(object):
         print("\ns")
 
 
-"""
-A Group is a set of related Tracks. An example might be a melody Track and
-an effects Track that accompanies it. A group can have a shared dynamic arc.
-"""
-
-
 class Group(object):
+    """
+    A Group is a set of related Tracks. An example might be a melody Track and
+    an effects Track that accompanies it. A group can have a shared dynamic arc.
+    """
+
     def __init__(self, name="track group", tracks=[], start=0., dynamics=Dynamics()):
         self.name = name
         self.tracks = tracks
@@ -395,14 +396,13 @@ class Group(object):
             track.emit(group_start, calc_dynamics)
 
 
-"""
-A Track is a series of musical Events. It has a start time; duration is
-determined by the Events included. Optional dynamic arc. The track also
-stores a reference to the Instrument used to emit CSound events.
-"""
-
-
 class Track(object):
+    """
+    A Track is a series of musical Events. It has a start time; duration is
+    determined by the Events included. Optional dynamic arc. The track also
+    stores a reference to the Instrument used to emit CSound events.
+    """
+
     def __init__(self, instr, name=None, events=[], start=0., dynamics=Dynamics()):
         self.instr = instr
         self.events = events
@@ -433,12 +433,11 @@ class Track(object):
             event_start = event_start + event.duration
 
 
-"""
-An Event is the base class for a Gesture, Chord or Note.
-"""
-
-
 class Event(object):
+    """
+    An Event is the base class for a Gesture, Chord or Note.
+    """
+
     def __init__(self, start=0., duration=0., dynamics=Dynamics(), articulation=None):
         self.start = start
         self.dynamics = dynamics
@@ -450,15 +449,24 @@ class Event(object):
         return None
 
 
-"""
-A Gesture is a series of notes, chords, and/or Gestures. It can have a
-dynamic arc, and optional articulation (e.g. legato, staccato). It will
-have a start time and a duration (or, optionally, its duration may simply
-be the duration of its consituent elements).
-"""
+class TempoPoint(Event):
+    """
+    A TempoPoint is simply a mark indicating that the section's tempo
+    should have a certain value at a certain time.
+    """
+
+    def __init__(self, start=0.):
+        super(TempoPoint, self).__init__(start)
 
 
 class Gesture(Event):
+    """
+    A Gesture is a series of notes, chords, and/or Gestures. It can have a
+    dynamic arc, and optional articulation (e.g. legato, staccato). It will
+    have a start time and a duration (or, optionally, its duration may simply
+    be the duration of its consituent elements).
+    """
+
     def __init__(self, events=[], start=0., duration=None,
                  dynamics=Dynamics(), articulation=None):
 
@@ -496,13 +504,12 @@ class Gesture(Event):
             event_start = event_start + event.duration
 
 
-"""
-A chord is a set of Notes, Chords or Gestures that sound simultaneously. They may have a
-dynamic arc, a start time, a duration, and an articulation.
-"""
-
-
 class Chord(Event):
+    """
+    A chord is a set of Notes, Chords or Gestures that sound simultaneously. They may have a
+    dynamic arc, a start time, a duration, and an articulation.
+    """
+
     def __init__(self, events=[], start=0., duration=None,
                  dynamics=Dynamics(), articulation=None):
 
@@ -537,13 +544,12 @@ class Chord(Event):
             event.emit(instr, self.start + start, calc_dynamics, passed_articulation)
 
 
-"""
-A note has a start time, a duration, a dynamic arc (often a simple ampltiude),
-and an optional frequency arc (often a simple pitch).
-"""
-
-
 class Note(Event):
+    """
+    A note has a start time, a duration, a dynamic arc (often a simple ampltiude),
+    and an optional frequency arc (often a simple pitch).
+    """
+
     def __init__(self, start=0.0, duration=0.0, dynamics=Dynamics(), articulation=None, pitch=None):
         self.pitch = pitch
         super(Note, self).__init__(start, duration, dynamics, articulation)
@@ -567,14 +573,13 @@ class Note(Event):
         return instr.emit(_start, self.duration, calc_dynamics, passed_articulation, self.pitch, portamento)
 
 
-"""
-Subclass Instrument, overriding its basic emit function to correctly
-interpret start times, durations, dynamics and articulation into
-csound parameters.
-"""
-
-
 class Instrument(object):
+    """
+    Subclass Instrument, overriding its basic emit function to correctly
+    interpret start times, durations, dynamics and articulation into
+    csound parameters.
+    """
+
     def __init__(self, i_number):
         self.i_number = i_number
 
@@ -586,7 +591,7 @@ class Instrument(object):
 
         event_line = "i"
         for p in params:
-            event_line = event_line + " {0}".format(p)
+            event_line += " {0}".format(p)
         print(event_line)
 
         return self.update_portamento(params, articulation, portamento)
