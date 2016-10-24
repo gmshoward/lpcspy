@@ -15,8 +15,6 @@ import math
 # Song
 
 
-
-
 # "Dynamic Point"
 class DP(object):
     def __init__(self, level, duration):
@@ -355,6 +353,10 @@ class Section(object):
             if part.duration > self.duration:
                 self.duration = part.duration
 
+    def addTempoPoint(self, when, tempo):
+        self.tempo.append((when, tempo))
+        self.tempo.sort(key=lambda tp: tp[0])
+
     def emit(self):
         print("\n;;======================================================================")
         print(";; {0}".format(self.name))
@@ -448,15 +450,6 @@ class Event(object):
         # override me
         return None
 
-
-class TempoPoint(Event):
-    """
-    A TempoPoint is simply a mark indicating that the section's tempo
-    should have a certain value at a certain time.
-    """
-
-    def __init__(self, start=0.):
-        super(TempoPoint, self).__init__(start)
 
 
 class Gesture(Event):

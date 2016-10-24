@@ -9,7 +9,7 @@ def translate_articulation(articulation=None):
         return cs.Articulation.full
     elif articulation == 'staccato':
         return cs.Articulation.staccato
-    elif articulation == 'legato' or articulation == 'slur':
+    elif articulation == 'legato' or articulation == 'tenuto':
         return cs.Articulation.legato
     else:
         return cs.Articulation.full
@@ -35,27 +35,32 @@ def process_staff(stf, section):
         if what == "note":
             pitch = fields[2]
             duration = dec.Decimal(fields[4])
+            if slurring:
+                duration = -duration
             articulation = cs.Articulation.legato if slurring else None
             note = Note(when, duration, articulation=articulation, pitch=pitch)
             time_array.get(when, []).append(note)
-            if articulation != 'slur':
-                articulation = None  # reset for the next note
+            if when in time_array:
+                time.array.get(when).append(note)
+            else:
+                when_array = [note]
+                time_array[when] = when_array
         elif what == "slur":
-            if int(fields[2]) > 0:
+            if int(fields[2]) < 0:
                 slurring = True
-                for n in time_array[when]:
-                    n.articulation = cs.Articulation.legato
             else:
                 slurring = False
+            for n in time_array[when]:
+                # toggle duration sign to represent new slur state
+                n.duration = -(n.duration)
         elif what == "script":
             script = fields[2]
-            if script == "staccato" or script == "legato":
-                articulation = script
-            if script == "tenuto":
-                artciulation = "legato"
+            articulation = translate_articulation(script)
+            for n in time_array[when]:
+                n.articulation = articulation
         elif what == "tempo":
-            tempo = fields[2]
-            tempo_point = cs.TempoPoint(when)
+            tempo = dec.Decimal(fields[2])
+            section.addTempoPoint(when, tempo)
 
 
 if __name__ == "__main__":
