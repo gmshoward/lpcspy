@@ -152,7 +152,7 @@ class Dynamics(object):
         slice_envelope.append((final_level, 0))
 
         return Dynamics(slice_envelope, self.absolute)
-
+    
     def add(self, addend):
         if (self.absolute and addend.absolute):
             raise ValueError("cannot add two absolute dynamics descriptors")
@@ -163,8 +163,8 @@ class Dynamics(object):
             base = self.envelope
             mod = addend.envelope
 
-        self.dump()
-        addend.dump()
+        #self.dump()
+        #addend.dump()
         sum_env = []
 
         """
@@ -342,7 +342,7 @@ class Section(object):
     into a csound "t" score statement.
     """
 
-    def __init__(self, name="song section", parts=[], tempo=[(0., 60.)], start=0., dynamics=Dynamics()):
+    def __init__(self, name="song section", parts=[], tempo=[], start=0., dynamics=Dynamics()):
         self.name = name
         self.parts = parts
         self.tempo = tempo
@@ -412,7 +412,8 @@ class Track(object):
         self.dynamics = dynamics
         self.duration = 0.
         for event in self.events:
-            self.duration += event.duration
+            print(";    event duration={0}".format(event.duration))
+            self.duration += math.fabs(event.duration)
         if name == None:
             self.name = "Instrument #{0}".format(self.instr.i_number)
         else:
@@ -428,11 +429,12 @@ class Track(object):
         track_start = self.start + start
         event_start = track_start
         for event in self.events:
-            slice_start = (event_start - track_start) / self.duration
-            slice_duration = event.duration / self.duration
-            passed_dynamics = calc_dynamics.slice(slice_start, slice_duration)
-            event.emit(instr, event_start, passed_dynamics)
-            event_start = event_start + event.duration
+            #slice_start = (event_start - track_start) / self.duration
+            slice_start = event.start / self.duration
+            slice_duration = math.fabs(event.duration) / self.duration
+            passed_dynamics = calc_dynamics.slice(slice_start, slice_duration) 
+            event.emit(self.instr, event_start, passed_dynamics)
+            #event_start = event_start + event.duration
 
 
 class Event(object):
@@ -441,15 +443,26 @@ class Event(object):
     """
 
     def __init__(self, start=0., duration=0., dynamics=Dynamics(), articulation=None):
-        self.start = start
+        self.start = float(start)
         self.dynamics = dynamics
         self.articulation = articulation
-        self.duration = duration
+        self.duration = float(duration)
 
     def emit(self, instr, start, dynamics):
         # override me
         return None
 
+
+class Rest(Event):
+    """
+    A Rest just advances the beat count. No score statements are emitted.
+    """
+
+    def __init__(self, start=0., duration=0.0):
+        super(Rest, self).__init__(start, duration)
+
+    def emit(self, instr, start, ignored_dynamics, ignored_articulation, ignored_portamento):
+        return None
 
 
 class Gesture(Event):
@@ -468,7 +481,7 @@ class Gesture(Event):
         if (duration is None):
             _duration = 0
             for event in self.events:
-                _duration += event.duration
+                _duration += math.fabs(event.duration)
         else:
             _duration = duration
 
@@ -491,7 +504,7 @@ class Gesture(Event):
         portamento = None  # at the beginning of the Gesture
         for event in self.events:
             slice_start = (event_start - gesture_start) / self.duration
-            slice_duration = event.duration / self.duration
+            slice_duration = math.fabs(event.duration) / self.duration
             passed_dynamics = calc_dynamics.slice(slice_start, slice_duration)
             portamento = event.emit(instr, event_start, passed_dynamics, passed_articulation, portamento)
             event_start = event_start + event.duration
@@ -510,7 +523,7 @@ class Chord(Event):
         if duration is None:
             _duration = 0.0
             for event in self.events:
-                if event.duration > _duration:
+                if math.fabs(event.duration) > _duration:
                     _duration = event.duration
         else:
             _duration = duration
@@ -543,11 +556,12 @@ class Note(Event):
     and an optional frequency arc (often a simple pitch).
     """
 
-    def __init__(self, start=0.0, duration=0.0, dynamics=Dynamics(), articulation=None, pitch=None):
+    def __init__(self, start=0.0, duration=0.0, dynamics=Dynamics(), articulation=None, pitch=None, params=None):
         self.pitch = pitch
+        self.params = params
         super(Note, self).__init__(start, duration, dynamics, articulation)
 
-    def emit(self, instr, start=0.0, dynamics=Dynamics(), articulation=None, portamento=None):
+    def emit(self, instr, start=0.0, dynamics=Dynamics(), articulation=None, portamento=None, params=None):
         if self.articulation is None:
             passed_articulation = articulation
         else:
@@ -576,11 +590,12 @@ class Instrument(object):
     def __init__(self, i_number):
         self.i_number = i_number
 
-    def emit(self, start, duration, dynamics, articulation, pitch, portamento):
+    def emit(self, start, duration, dynamics, articulation, pitch, portamento, other_parameters = []):
         params = [self.i_number]
-        params = params + self.time_params(start, duration, articulation)
-        params = params + self.dynamic_params(dynamics, articulation, portamento)
-        params = params + self.pitch_params(pitch, articulation, portamento)
+        params.extend(self.time_params(start, duration, articulation))
+        params.extend(self.dynamic_params(dynamics, articulation, portamento))
+        params.extend(self.pitch_params(pitch, articulation, portamento))
+        params.extend(self.other_params(other_parameters, articulation, portamento))
 
         event_line = "i"
         for p in params:
@@ -608,6 +623,10 @@ class Instrument(object):
             return [pitch]
         else:
             return []
+
+    def other_params(self, other_parameters, articulation, portamento):
+        # Override this function to interpret additional parameters.
+        return []
 
     def update_portamento(self, params, articulation, portamento):
         # This basic instrument returns previous pitch as the portamento cookie,
