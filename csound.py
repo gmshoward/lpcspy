@@ -2,6 +2,9 @@ from __future__ import print_function
 
 import matplotlib.pyplot as plt
 import math
+import decimal as dec
+
+decZero = dec.Decimal(0).normalize()
 
 
 # Library of musical representations for use with CSound.
@@ -19,7 +22,7 @@ import math
 class DP(object):
     def __init__(self, level, duration):
         self.level = float(level)
-        self.duration = float(duration)
+        self.duration = dec.Decimal(duration)
 
 
 class Dynamics(object):
@@ -43,7 +46,8 @@ class Dynamics(object):
     ff = 0.7
     fff = 0.8
 
-    def __init__(self, envelope=[(0., 1.), (0., 0.)], absolute=False):
+    def __init__(self, envelope=[(decZero, dec.Decimal(1.)),
+            (decZero, decZero)], absolute=False):
         self.envelope = []
         for point in envelope:
             dp = DP(point[0], point[1])
@@ -53,17 +57,17 @@ class Dynamics(object):
 
     @classmethod
     def constant(cls, level, absolute=False):
-        return cls([(level, 1.0), (level, 0.0)], absolute)
+        return cls([(level, dec.Decimal(1.0)), (level, decZero)], absolute)
 
     @classmethod
     def accent(cls, level=0.1):
-        return cls([(level, 1.0), (level, 0.0)], False)
+        return cls([(level, dec.Decimal(1.0)), (level, decZero)], False)
 
     def normalize(self):
-        total_length = 0.0
+        total_length = dec.Decimal(0.0)
         highest_level = 0.0
         for dp in self.envelope:
-            if dp.duration < 0.0:
+            if dp.duration < dec.Decimal(0.0):
                 raise ValueError("negative length not allowed")
             total_length = total_length + dp.duration
             absolute_level = math.fabs(dp.level)
@@ -76,10 +80,10 @@ class Dynamics(object):
             if (highest_level == 0):
                 new_level = 0
             elif (highest_level > 1.0):
-                new_level = dp_old.level / float(highest_level)
+                new_level = dp_old.level / highest_level
             else:
                 new_level = dp_old.level
-            new_length = dp_old.duration / float(total_length)
+            new_length = dp_old.duration / dec.Decimal(total_length)
             self.envelope[i] = DP(new_level, new_length)
 
     def initial_level(self):
@@ -93,25 +97,25 @@ class Dynamics(object):
         dp_prev = self.envelope[0]
         for dp in self.envelope[1:]:
             segment_average = (dp_prev.level + dp.level) / 2.0
-            level += (segment_average * dp_prev.duration)
+            level += (segment_average * float(dp_prev.duration))
             dp_prev = dp
 
         return level
 
     def slice(self, start, duration):
-        if duration > 1.0 or start > 1.0:
+        if duration > dec.Decimal(1.0) or start > dec.Decimal(1.0):
             raise ValueError("slice parameters should be fractions")
-        if duration < 0.0 or start < 0.0:
+        if duration < dec.Decimal(0.0) or start < dec.Decimal(0.0):
             raise ValueError("negative slice parameters not allowed")
         slice_end_time = start + duration
-        if slice_end_time > 1.0:
-            duration = 1.0 - float(start)
+        if slice_end_time > dec.Decimal(1.0):
+            duration = dec.Decimal(1.0) - dec.Decimal(start)
 
         # find slice
         envelope_length = len(self.envelope)
         slice_envelope = []
         dp_a = self.envelope[0]
-        segment_start_time = 0.
+        segment_start_time = decZero
         segment_end_time = dp_a.duration
 
         # leftmost element
@@ -123,9 +127,9 @@ class Dynamics(object):
             segment_start_time = segment_end_time
             segment_end_time = segment_end_time + dp_a.duration
 
-        initial_level_slope = (dp_b.level - dp_a.level) / dp_a.duration
+        initial_level_slope = (dp_b.level - dp_a.level) / float(dp_a.duration)
         initial_time_offset = start - segment_start_time
-        initial_level = (initial_level_slope * initial_time_offset) + dp_a.level
+        initial_level = (initial_level_slope * float(initial_time_offset)) + dp_a.level
         initial_duration = min((segment_end_time - start), duration)
 
         slice_envelope.append((initial_level, initial_duration))
@@ -142,9 +146,9 @@ class Dynamics(object):
             segment_end_time = segment_end_time + dp_a.duration
 
         # rightmost element
-        final_level_slope = (dp_b.level - dp_a.level) / dp_a.duration
+        final_level_slope = (dp_b.level - dp_a.level) / float(dp_a.duration)
         final_time_offset = slice_end_time - segment_start_time
-        final_level = (final_level_slope * final_time_offset) + dp_a.level
+        final_level = (final_level_slope * float(final_time_offset)) + dp_a.level
 
         # update last duration
         (prev_level, prev_duration) = slice_envelope.pop()
@@ -188,13 +192,13 @@ class Dynamics(object):
 
         """
         dp_base_a = base[0]
-        base_segment_start = 0.
+        base_segment_start = decZero
         base_segment_end = dp_base_a.duration
         base_point_count = len(base)
 
         for i_base in range(1, base_point_count):
             dp_base_b = base[i_base]
-            base_segment_slope = (dp_base_b.level - dp_base_a.level) / dp_base_a.duration
+            base_segment_slope = (dp_base_b.level - dp_base_a.level) / float(dp_base_a.duration)
 
             dp_mod_a = mod[0]
             mod_segment_start = 0.
@@ -203,7 +207,7 @@ class Dynamics(object):
 
             for i_mod in range(1, mod_point_count):
                 dp_mod_b = mod[i_mod]
-                mod_segment_slope = (dp_mod_b.level - dp_mod_a.level) / dp_mod_a.duration
+                mod_segment_slope = (dp_mod_b.level - dp_mod_a.level) / float(dp_mod_a.duration)
 
                 if (mod_segment_start >= base_segment_end):
                     # past the end of the base segment; go to next base segment
@@ -219,7 +223,7 @@ class Dynamics(object):
                     # mod segment begins inside base segment; calculate the immediate
                     # base level and add it to the mod level
                     base_segment_offset = mod_segment_start - base_segment_start
-                    base_segment_level = (base_segment_slope * base_segment_offset) + dp_base_a.level
+                    base_segment_level = (base_segment_slope * float(base_segment_offset)) + dp_base_a.level
                     sum_point = (base_segment_level + dp_mod_a.level, mod_segment_start)
                     sum_env.append(sum_point)
 
@@ -227,7 +231,7 @@ class Dynamics(object):
                     # current mod segment overlaps the beginning of the base segment;
                     # calculate the immediate mod level and add it to the base level
                     mod_segment_offset = base_segment_start - mod_segment_start
-                    mod_segment_level = (mod_segment_slope * mod_segment_offset) + dp_mod_a.level
+                    mod_segment_level = (mod_segment_slope * float(mod_segment_offset)) + dp_mod_a.level
                     sum_point = (dp_base_a.level + mod_segment_level, base_segment_start)
                     sum_env.append(sum_point)
 
@@ -246,7 +250,7 @@ class Dynamics(object):
             base_segment_end = base_segment_end + dp_base_a.duration
 
         # the end of the envelopes are a special case
-        sum_point = (base[-1].level + mod[-1].level, 1.0)
+        sum_point = (base[-1].level + mod[-1].level, dec.Decimal(1.0))
         sum_env.append(sum_point)
 
         # convert absolute times to durations
@@ -272,7 +276,7 @@ class Dynamics(object):
             sum_level = 1.0
         elif (sum_level < 0.0):
             sum_level = 0.0
-        dur_point = (sum_level, 0.)
+        dur_point = (sum_level, decZero)
         dur_env.append(dur_point)
 
         return Dynamics(dur_env, self.absolute or addend.absolute)
@@ -342,7 +346,7 @@ class Section(object):
     into a csound "t" score statement.
     """
 
-    def __init__(self, name="song section", parts=[], tempo=[], start=0., dynamics=Dynamics()):
+    def __init__(self, name="song section", parts=[], tempo=[], start=decZero, dynamics=Dynamics()):
         self.name = name
         self.parts = parts
         self.tempo = tempo
@@ -362,7 +366,7 @@ class Section(object):
         print(";; {0}".format(self.name))
         tempo_statement = "\nt"
         for t in self.tempo:
-            tempo_statement = tempo_statement + " {0} {1}".format(t[0], t[1])
+            tempo_statement = tempo_statement + " {0} {1}".format(float(t[0]), float(t[1]))
         print(tempo_statement)
 
         for part in self.parts:
@@ -376,7 +380,7 @@ class Group(object):
     an effects Track that accompanies it. A group can have a shared dynamic arc.
     """
 
-    def __init__(self, name="track group", tracks=[], start=0., dynamics=Dynamics()):
+    def __init__(self, name="track group", tracks=[], start=decZero, dynamics=Dynamics()):
         self.name = name
         self.tracks = tracks
         self.start = start
@@ -405,15 +409,14 @@ class Track(object):
     stores a reference to the Instrument used to emit CSound events.
     """
 
-    def __init__(self, instr, name=None, events=[], start=0., dynamics=Dynamics()):
+    def __init__(self, instr, name=None, events=[], start=decZero, dynamics=Dynamics()):
         self.instr = instr
         self.events = events
         self.start = start
         self.dynamics = dynamics
-        self.duration = 0.
+        self.duration = dec.Decimal(0.)
         for event in self.events:
-            print(";    event duration={0}".format(event.duration))
-            self.duration += math.fabs(event.duration)
+            self.duration += event.duration.copy_abs()
         if name == None:
             self.name = "Instrument #{0}".format(self.instr.i_number)
         else:
@@ -431,7 +434,7 @@ class Track(object):
         for event in self.events:
             #slice_start = (event_start - track_start) / self.duration
             slice_start = event.start / self.duration
-            slice_duration = math.fabs(event.duration) / self.duration
+            slice_duration = event.duration.copy_abs() / self.duration
             passed_dynamics = calc_dynamics.slice(slice_start, slice_duration) 
             event.emit(self.instr, event_start, passed_dynamics)
             #event_start = event_start + event.duration
@@ -442,11 +445,11 @@ class Event(object):
     An Event is the base class for a Gesture, Chord or Note.
     """
 
-    def __init__(self, start=0., duration=0., dynamics=Dynamics(), articulation=None):
-        self.start = float(start)
+    def __init__(self, start=decZero, duration=decZero, dynamics=Dynamics(), articulation=None):
+        self.start = dec.Decimal(start)
         self.dynamics = dynamics
         self.articulation = articulation
-        self.duration = float(duration)
+        self.duration = dec.Decimal(duration)
 
     def emit(self, instr, start, dynamics):
         # override me
@@ -458,7 +461,7 @@ class Rest(Event):
     A Rest just advances the beat count. No score statements are emitted.
     """
 
-    def __init__(self, start=0., duration=0.0):
+    def __init__(self, start=decZero, duration=decZero):
         super(Rest, self).__init__(start, duration)
 
     def emit(self, instr, start, ignored_dynamics, ignored_articulation, ignored_portamento):
@@ -473,7 +476,7 @@ class Gesture(Event):
     be the duration of its consituent elements).
     """
 
-    def __init__(self, events=[], start=0., duration=None,
+    def __init__(self, events=[], start=decZero, duration=None,
                  dynamics=Dynamics(), articulation=None):
 
         self.events = events
@@ -481,14 +484,14 @@ class Gesture(Event):
         if (duration is None):
             _duration = 0
             for event in self.events:
-                _duration += math.fabs(event.duration)
+                _duration += event.duration.copy_abs()
         else:
             _duration = duration
 
         super(Gesture, self).__init__(start, _duration, dynamics, articulation)
         # Event.__init__(self, start, _duration, dynamics, articulation)
 
-    def emit(self, instr, start=0., dynamics=Dynamics(), articulation=None):
+    def emit(self, instr, start=decZero, dynamics=Dynamics(), articulation=None):
         if (self.articulation == None):
             passed_articulation = articulation
         else:
@@ -504,7 +507,7 @@ class Gesture(Event):
         portamento = None  # at the beginning of the Gesture
         for event in self.events:
             slice_start = (event_start - gesture_start) / self.duration
-            slice_duration = math.fabs(event.duration) / self.duration
+            slice_duration = event.duration.copy_abs() / self.duration
             passed_dynamics = calc_dynamics.slice(slice_start, slice_duration)
             portamento = event.emit(instr, event_start, passed_dynamics, passed_articulation, portamento)
             event_start = event_start + event.duration
@@ -516,21 +519,21 @@ class Chord(Event):
     dynamic arc, a start time, a duration, and an articulation.
     """
 
-    def __init__(self, events=[], start=0., duration=None,
+    def __init__(self, events=[], start=decZero, duration=None,
                  dynamics=Dynamics(), articulation=None):
 
         self.events = events
         if duration is None:
             _duration = 0.0
             for event in self.events:
-                if math.fabs(event.duration) > _duration:
-                    _duration = event.duration
+                if event.duration.copy_abs() > _duration:
+                    _duration = event.duration.copy_abs()
         else:
             _duration = duration
 
         super(Chord, self).__init__(start, _duration, dynamics, articulation)
 
-    def emit(self, instr, start=0., dynamics=Dynamics(), articulation=None):
+    def emit(self, instr, start=decZero, dynamics=Dynamics(), articulation=None):
         if self.articulation is None:
             passed_articulation = articulation
         else:
@@ -556,12 +559,13 @@ class Note(Event):
     and an optional frequency arc (often a simple pitch).
     """
 
-    def __init__(self, start=0.0, duration=0.0, dynamics=Dynamics(), articulation=None, pitch=None, params=None):
+    def __init__(self, start=decZero, duration=decZero,
+            dynamics=Dynamics(), articulation=None, pitch=None, params=None):
         self.pitch = pitch
         self.params = params
         super(Note, self).__init__(start, duration, dynamics, articulation)
 
-    def emit(self, instr, start=0.0, dynamics=Dynamics(), articulation=None, portamento=None, params=None):
+    def emit(self, instr, start=decZero, dynamics=Dynamics(), articulation=None, portamento=None, params=None):
         if self.articulation is None:
             passed_articulation = articulation
         else:
@@ -607,8 +611,8 @@ class Instrument(object):
     def time_params(self, start, duration, articulation):
         if (articulation == Articulation.staccato):
             # naive way to interpret staccato articulation
-            duration = 0.5 * duration
-        return [start, duration]
+            duration = dec.Decimal(0.5) * duration
+        return [float(start), float(duration)]
 
     def dynamic_params(self, dynamics, articulation, portamento):
         # Only allow for one dynamics parameter in this base instrument.

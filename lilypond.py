@@ -46,7 +46,7 @@ def process_staff(stf, track_name, instrument):
             else:
                 articulation = cs.Articulation.legato if slurring else None
                 note = cs.Note(when, duration, articulation=articulation, pitch=pitch)
-                time_array.get(when, []).append(note)
+                #time_array.get(when, []).append(note)
                 if when in time_array:
                     time_array.get(when).append(note)
                 else:
@@ -69,11 +69,11 @@ def process_staff(stf, track_name, instrument):
                 n.articulation = articulation
         elif what == "tempo":
             tempo = dec.Decimal(fields[2]) / dec.Decimal(4)
-            tempi.append((float(when), float(tempo)))
+            tempi.append((dec.Decimal(when), dec.Decimal(tempo)))
         elif what == "rest":
             pass # nothing to do with respect to csound
         else:
-            print("unknown line", fields)
+            print("unknown line", fields, file=sys.stderr)
 
     if len(dyn_envelope) == 0:
         dynamics = cs.Dynamics.constant(cs.Dynamics.mf, absolute=True)
@@ -88,15 +88,15 @@ def process_staff(stf, track_name, instrument):
             notes.append(event)
         chords.append(cs.Chord(notes))
     track = cs.Track(instrument, track_name, chords)
-    section = cs.Section(track_name, [track], tempi, 0.0, dynamics)
+    section = cs.Section(track_name, [track], tempi, cs.decZero, dynamics)
     return section
 
 
 if __name__ == "__main__":
     instrument = cs.Instrument(77)
-    track_name = "test-Chords"
+    track_name = "test-Bass"
     daFile = track_name + ".notes"
     with open(daFile) as f:
         s = process_staff(f, track_name, instrument)
     s.emit()	
-		
+
